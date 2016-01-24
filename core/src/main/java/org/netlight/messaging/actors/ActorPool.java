@@ -1,21 +1,32 @@
 package org.netlight.messaging.actors;
 
+import org.netlight.channel.ChannelContext;
+import org.netlight.messaging.Message;
 import org.netlight.util.CommonUtils;
-import org.netlight.util.concurrent.AtomicBooleanField;
+import org.netlight.util.MaxMinHolder;
 
 import java.util.concurrent.*;
+import java.util.concurrent.locks.Lock;
 
 /**
  * @author ahmad
  */
-public final class ActorPool implements ActorFutureListener {
+public final class ActorPool {
 
     private final int parallelism;
     private final ExecutorService executorService;
-    private final ConcurrentMap<Actor, AtomicBooleanField> actors = new ConcurrentHashMap<>();
+    private final ActorFactory actorFactory;
+    private final ConcurrentMap<Long, Actor> actors = new ConcurrentHashMap<>();
+    private final ConcurrentMap<Actor, RunnableActor> runnableActors = new ConcurrentHashMap<>();
+    private final ActorFutureListener actorFutureListener = new ActorFutureListenerImpl();
 
-    public ActorPool(int parallelism) {
+    public ActorPool(ActorFactory actorFactory) {
+        this(Runtime.getRuntime().availableProcessors() * 2, actorFactory);
+    }
+
+    public ActorPool(int parallelism, ActorFactory actorFactory) {
         this.parallelism = parallelism;
+        this.actorFactory = actorFactory;
         executorService = new ForkJoinPool(parallelism);
     }
 
@@ -24,16 +35,60 @@ public final class ActorPool implements ActorFutureListener {
     }
 
     public Actor next() {
-        return new Actor(null);
+        final MaxMinHolder<Integer, Actor> holder = new MaxMinHolder<>();
+        for (Actor actor : actors.values()) {
+            int load = actor.load();
+            if (isStateEqualTo(actor, RunnableActorState.IDLE)) {
+                --load;
+            }
+            holder.in(load, actor);
+        }
+        Actor next = holder.getMin().getValue();
+        if (next == null) {
+            next = createActor();
+        } else if (next.load() > 0) {
+            Actor newActor = createActor();
+            if (newActor != null) {
+                next = newActor;
+            }
+        }
+        return next;
+    }
+
+    private Actor createActor() {
+        synchronized (actors) {
+            if (actors.size() < parallelism) {
+                Actor actor = new ActorDecorator(actorFactory.create());
+                actors.put(actor.id(), actor);
+                return actor;
+            }
+        }
+        return null;
     }
 
     private void activate(Actor actor) {
-        final AtomicBooleanField active = actors.get(actor);
-        if (active.compareAndSet(false, true)) {
-            ActorPromise actorPromise = new DefaultActorPromise(actor);
-            actorPromise.addListener(this);
-            executorService.execute(new RunnableActor(actorPromise));
+        RunnableActor r = CommonUtils.getOrPutConcurrent(runnableActors, actor, actor::makeRunnable);
+        if (r.state() == RunnableActorState.IN_ACTIVE) {
+            final Lock l = actor.lock();
+            l.lock();
+            try {
+                if (!r.isFirstRun()) {
+                    runnableActors.put(actor, r = actor.makeRunnable());
+                }
+                r.future().addListener(actorFutureListener);
+                executorService.execute(r);
+            } finally {
+                l.unlock();
+            }
         }
+    }
+
+    public RunnableActorState getState(Actor actor) {
+        return CommonUtils.computeIf(runnableActors.get(actor), CommonUtils.notNull(), RunnableActor::state);
+    }
+
+    public boolean isStateEqualTo(Actor actor, RunnableActorState expect) {
+        return CommonUtils.computeIf(getState(actor), CommonUtils.notNull(), state -> state == expect, false);
     }
 
     public void shutdown() {
@@ -45,14 +100,55 @@ public final class ActorPool implements ActorFutureListener {
         }
     }
 
-    @Override
-    public void onComplete(ActorFuture future) {
-        CommonUtils.computeIf(actors.get(future.actor()), CommonUtils.notNull(), active -> {
-            active.set(false);
-            if (future.isCompletedExceptionally()) {
-                activate(future.actor());
+    private final class ActorFutureListenerImpl implements ActorFutureListener {
+
+        @Override
+        public void onComplete(ActorFuture future) {
+            final Actor actor = future.actor();
+            if (actor instanceof ActorDecorator && actors.containsKey(actor.id())) {
+                if (future.isCompletedExceptionally() || actor.load() > 0) {
+                    // TODO log
+                    activate(actor);
+                }
             }
-        });
+        }
+
+    }
+
+    private final class ActorDecorator implements Actor {
+
+        private final Actor decoratedActor;
+
+        private ActorDecorator(Actor decoratedActor) {
+            this.decoratedActor = decoratedActor;
+        }
+
+        @Override
+        public long id() {
+            return decoratedActor.id();
+        }
+
+        @Override
+        public void tell(ChannelContext ctx, Message message, int weight) {
+            decoratedActor.tell(ctx, message, weight);
+            activate(this);
+        }
+
+        @Override
+        public int load() {
+            return decoratedActor.load();
+        }
+
+        @Override
+        public Lock lock() {
+            return decoratedActor.lock();
+        }
+
+        @Override
+        public RunnableActor makeRunnable() {
+            return decoratedActor.makeRunnable();
+        }
+
     }
 
 }

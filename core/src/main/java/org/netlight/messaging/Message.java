@@ -12,12 +12,11 @@ import static org.netlight.util.CommonUtils.notNull;
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 //@JsonIdentityInfo(generator = ObjectIdGenerators.IntSequenceGenerator.class)
-public class Message extends HashMap<String, Object> {
+public final class Message extends HashMap<String, Object> {
 
     private static final long serialVersionUID = 1045967313327361741L;
 
     public Message() {
-        super();
     }
 
     public Message(Map<String, Object> map) {
@@ -98,10 +97,16 @@ public class Message extends HashMap<String, Object> {
 
     @SuppressWarnings("unchecked")
     public static Message toMessage(Object o) {
-        return o != null && o instanceof Map ? new Message((Map<String, Object>) o) : null;
+        if (o instanceof Message) {
+            return (Message) o;
+        }
+        if (o instanceof Map) {
+            return new Message((Map<String, Object>) o);
+        }
+        return null;
     }
 
-    public MessageBuilder builder(){
+    public MessageBuilder builder() {
         return newBuilder(this);
     }
 

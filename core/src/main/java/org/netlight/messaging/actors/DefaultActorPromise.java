@@ -13,7 +13,7 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 /**
  * @author ahmad
  */
-public final class DefaultActorPromise implements ActorPromise {
+final class DefaultActorPromise implements ActorPromise {
 
     private final Actor actor;
     private final AtomicBooleanField done = new AtomicBooleanField();
@@ -23,7 +23,7 @@ public final class DefaultActorPromise implements ActorPromise {
     private final Lock r = lock.readLock();
     private final Lock w = lock.readLock();
 
-    public DefaultActorPromise(Actor actor) {
+    DefaultActorPromise(Actor actor) {
         Objects.requireNonNull(actor);
         this.actor = actor;
     }

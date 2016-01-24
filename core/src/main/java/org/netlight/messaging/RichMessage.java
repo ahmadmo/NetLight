@@ -2,25 +2,25 @@ package org.netlight.messaging;
 
 import org.netlight.channel.ChannelContext;
 
-import java.util.Map;
-
 /**
  * @author ahmad
  */
-public final class RichMessage extends Message implements Comparable<RichMessage> {
+public final class RichMessage {
 
+    private final Message message;
     private final ChannelContext channelContext;
     private final long timeStamp;
+    private final int weight;
 
-    public RichMessage(ChannelContext channelContext, long timeStamp) {
+    public RichMessage(Message message, ChannelContext channelContext, long timeStamp, int weight) {
+        this.message = message;
         this.channelContext = channelContext;
         this.timeStamp = timeStamp;
+        this.weight = weight;
     }
 
-    public RichMessage(Map<String, Object> map, ChannelContext channelContext, long timeStamp) {
-        super(map);
-        this.channelContext = channelContext;
-        this.timeStamp = timeStamp;
+    public Message getMessage() {
+        return message;
     }
 
     public ChannelContext getChannelContext() {
@@ -31,17 +31,17 @@ public final class RichMessage extends Message implements Comparable<RichMessage
         return timeStamp;
     }
 
-    @Override
-    public int compareTo(RichMessage o) {
-        return Long.compare(timeStamp, o.timeStamp);
+    public int getWeight() {
+        return weight;
     }
 
     @Override
     public String toString() {
         return "{" +
-                "channelContext=" + channelContext +
-                ", message=" + super.toString() +
+                "message=" + message +
+                ", channelContext=" + channelContext +
                 ", timeStamp=" + timeStamp +
+                ", weight=" + weight +
                 '}';
     }
 

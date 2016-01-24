@@ -26,9 +26,9 @@
     </licenses>
 
     <scm>
-        <url>https://github.com/netlight.git</url>
-        <connection>scm:git:git://github.com/netlight.git</connection>
-        <developerConnection>scm:git:ssh://git@github.com/netlight.git</developerConnection>
+        <url>https://github.com/ahmadmo/netlight.git</url>
+        <connection>scm:git:git://github.com/ahmadmo/netlight.git</connection>
+        <developerConnection>scm:git:ssh://git@github.com/ahmadmo/netlight.git</developerConnection>
     </scm>
 
     <developers>

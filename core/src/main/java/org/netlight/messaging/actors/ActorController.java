@@ -3,10 +3,7 @@ package org.netlight.messaging.actors;
 import org.netlight.channel.ChannelContext;
 import org.netlight.messaging.Message;
 
-import java.util.Collections;
 import java.util.Objects;
-import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * @author ahmad
@@ -14,7 +11,6 @@ import java.util.concurrent.ConcurrentHashMap;
 public final class ActorController {
 
     private final ActorPool actorPool;
-    private final Set<Actor> actors = Collections.newSetFromMap(new ConcurrentHashMap<>());
 
     public ActorController(ActorPool actorPool) {
         Objects.requireNonNull(actorPool);
@@ -22,7 +18,11 @@ public final class ActorController {
     }
 
     public void handleMessage(ChannelContext ctx, Message message) {
-        actorPool.next().tell(ctx, message);
+        handleMessage(ctx, message, 1);
+    }
+
+    public void handleMessage(ChannelContext ctx, Message message, int weight) {
+        actorPool.next().tell(ctx, message, weight);
     }
 
 }

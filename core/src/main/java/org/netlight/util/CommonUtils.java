@@ -15,20 +15,18 @@ public final class CommonUtils {
     }
 
     public static <T> boolean isNull(T t) {
-        if (t instanceof String) {
-            return isNull0((String) t);
-        }
-        if (t instanceof Collection) {
-            return isNull0((Collection) t);
-        }
-        if (t instanceof Map) {
-            return isNull0((Map) t);
-        }
-        return t == null;
+        return t == null || (t instanceof String ? isNull0((String) t)
+                : t instanceof Object[] ? isNull0(((Object[]) t))
+                : t instanceof Collection ? isNull0((Collection) t)
+                : t instanceof Map && isNull0((Map) t));
     }
 
     private static boolean isNull0(String s) {
         return s == null || (s = s.trim()).isEmpty() || s.equalsIgnoreCase("null");
+    }
+
+    private static boolean isNull0(Object[] array) {
+        return array == null || array.length == 0;
     }
 
     private static boolean isNull0(Collection collection) {
@@ -41,6 +39,14 @@ public final class CommonUtils {
 
     public static <T> boolean notNull(T t) {
         return !isNull(t);
+    }
+
+    public static <T> T notNull(T a, T b) {
+        return isNull(a) ? b : a;
+    }
+
+    public static <T> T notNull(T t, Supplier<T> def) {
+        return isNull(t) ? def.get() : t;
     }
 
     public static <T> Predicate<T> notNull() {
@@ -184,7 +190,7 @@ public final class CommonUtils {
         return o == null || !type.isInstance(o) ? def : (T) o;
     }
 
-    public static <K, V> V putConcurrent(ConcurrentMap<K, V> map, K key, Supplier<V> valueSupplier) {
+    public static <K, V> V getOrPutConcurrent(ConcurrentMap<K, V> map, K key, Supplier<V> valueSupplier) {
         V value = map.get(key);
         if (value == null) {
             final V v = map.putIfAbsent(key, value = valueSupplier.get());

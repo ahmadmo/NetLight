@@ -3,7 +3,7 @@ package org.netlight.messaging.actors;
 /**
  * @author ahmad
  */
-public interface ActorPromise extends ActorFuture {
+interface ActorPromise extends ActorFuture {
 
     ActorPromise complete();
 

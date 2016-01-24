@@ -1,5 +1,6 @@
 package org.netlight.messaging;
 
+import org.netlight.util.CommonUtils;
 import org.netlight.util.TimeProperty;
 
 import java.util.ArrayList;
@@ -10,13 +11,13 @@ import java.util.concurrent.LinkedBlockingQueue;
 /**
  * @author ahmad
  */
-public final class ConcurrentMessageQueue<M extends Message> implements MessageQueue<M> {
+public final class ConcurrentQueue<M> implements Queue<M> {
 
     private final LinkedBlockingQueue<M> queue = new LinkedBlockingQueue<>();
 
     @Override
     public boolean add(M message) {
-        return message != null && !message.isEmpty() && queue.offer(message);
+        return CommonUtils.notNull(message) && queue.offer(message);
     }
 
     @Override

@@ -8,7 +8,7 @@ import java.util.List;
 /**
  * @author ahmad
  */
-public interface MessageQueue<M extends Message> {
+public interface Queue<M> {
 
     boolean add(M message);
 
