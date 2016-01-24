@@ -120,7 +120,7 @@ public final class CacheManager<K, V> {
             return this;
         }
 
-        public CacheManagerBuilder<K, V> softValues(Ticker ticker) {
+        public CacheManagerBuilder<K, V> ticker(Ticker ticker) {
             cacheBuilder.ticker(ticker);
             return this;
         }
@@ -135,7 +135,7 @@ public final class CacheManager<K, V> {
             return this;
         }
 
-        public CacheManagerBuilder<K, V> softValues(Weigher<K, V> weigher) {
+        public CacheManagerBuilder<K, V> weigher(Weigher<K, V> weigher) {
             cacheBuilder.weigher(weigher);
             return this;
         }

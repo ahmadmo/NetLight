@@ -37,11 +37,7 @@ public final class ActorPool {
     public Actor next() {
         final MaxMinHolder<Integer, Actor> holder = new MaxMinHolder<>();
         for (Actor actor : actors.values()) {
-            int load = actor.load();
-            if (isStateEqualTo(actor, RunnableActorState.IDLE)) {
-                --load;
-            }
-            holder.in(load, actor);
+            holder.in(isStateEqualTo(actor, RunnableActorState.IDLE) ? actor.load() - 1 : actor.load(), actor);
         }
         Actor next = holder.getMin().getValue();
         if (next == null) {
