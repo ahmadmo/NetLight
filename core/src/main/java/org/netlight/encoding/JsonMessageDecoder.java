@@ -14,7 +14,7 @@ import static org.netlight.encoding.StandardMessageSerializers.JSON;
  */
 public final class JsonMessageDecoder extends MessageToMessageDecoder<ByteBuf> {
 
-    private final ThreadLocal<JsonObjectDecoder> decoder = new ThreadLocal<JsonObjectDecoder>() {
+    private static final ThreadLocal<JsonObjectDecoder> DECODER = new ThreadLocal<JsonObjectDecoder>() {
         @Override
         protected JsonObjectDecoder initialValue() {
             return new JsonObjectDecoder();
@@ -24,7 +24,7 @@ public final class JsonMessageDecoder extends MessageToMessageDecoder<ByteBuf> {
     @Override
     protected void decode(ChannelHandlerContext ctx, ByteBuf msg, List<Object> out) throws Exception {
         RecyclableArrayList buffers = RecyclableArrayList.newInstance();
-        decoder.get().decode(ctx, msg, buffers);
+        DECODER.get().decode(ctx, msg, buffers);
         for (Object buf : buffers) {
             out.add(JSON.deserialize(((ByteBuf) buf).toString(JSON.charset())));
         }
