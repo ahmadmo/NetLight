@@ -39,8 +39,9 @@ final class DefaultActor implements Actor {
 
     @Override
     public void tell(Message message, ChannelContext ctx, int weight) {
-        load.getAndAdd(weight);
-        mailbox.add(new RichMessage(message, ctx, System.currentTimeMillis(), weight));
+        if (mailbox.add(new RichMessage(message, ctx, System.currentTimeMillis(), weight))) {
+            load.getAndAdd(weight);
+        }
     }
 
     @Override
