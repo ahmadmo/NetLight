@@ -50,7 +50,7 @@ public final class CommonUtils {
     }
 
     public static <T> Predicate<T> notNull() {
-        return t -> t != null;
+        return CommonUtils::notNull;
     }
 
     public static <T> int compareNotNull(Comparable<T> a, T b) {

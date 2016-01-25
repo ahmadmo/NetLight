@@ -5,6 +5,7 @@ import org.netlight.messaging.Message;
 import org.netlight.util.CommonUtils;
 import org.netlight.util.MaxMinHolder;
 
+import java.util.Map;
 import java.util.concurrent.*;
 import java.util.concurrent.locks.Lock;
 
@@ -39,10 +40,12 @@ public final class ActorPool {
         for (Actor actor : actors.values()) {
             holder.in(isStateEqualTo(actor, RunnableActorState.IDLE) ? actor.load() - 1 : actor.load(), actor);
         }
-        Actor next = holder.getMin().getValue();
-        if (next == null) {
-            next = createActor();
-        } else if (next.load() > 0) {
+        Map.Entry<Integer, Actor> nextEntry = holder.getMin();
+        if (nextEntry == null) {
+            return createActor();
+        }
+        Actor next = nextEntry.getValue();
+        if (next.load() > 0) {
             Actor newActor = createActor();
             if (newActor != null) {
                 next = newActor;
@@ -125,8 +128,8 @@ public final class ActorPool {
         }
 
         @Override
-        public void tell(ChannelContext ctx, Message message, int weight) {
-            decoratedActor.tell(ctx, message, weight);
+        public void tell(Message message, ChannelContext ctx, int weight) {
+            decoratedActor.tell(message, ctx, weight);
             activate(this);
         }
 

@@ -38,7 +38,7 @@ final class DefaultActor implements Actor {
     }
 
     @Override
-    public void tell(ChannelContext ctx, Message message, int weight) {
+    public void tell(Message message, ChannelContext ctx, int weight) {
         load.getAndAdd(weight);
         mailbox.add(new RichMessage(message, ctx, System.currentTimeMillis(), weight));
     }
@@ -101,7 +101,7 @@ final class DefaultActor implements Actor {
                             state.set(RunnableActorState.ACTIVE);
                         }
                         load.getAndAdd(-richMessage.getWeight());
-                        listener.onMessage(richMessage.getChannelContext(), richMessage.getMessage());
+                        listener.onMessage(richMessage.getMessage(), richMessage.getChannelContext());
                     }
                 } catch (Throwable cause) {
                     promise.setFailure(cause);

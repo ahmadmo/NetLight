@@ -12,7 +12,7 @@ public interface Actor {
 
     long id();
 
-    void tell(ChannelContext ctx, Message message, int weight);
+    void tell(Message message, ChannelContext ctx, int weight);
 
     int load();
 

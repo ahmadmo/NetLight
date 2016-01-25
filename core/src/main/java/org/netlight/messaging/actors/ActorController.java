@@ -17,12 +17,12 @@ public final class ActorController {
         this.actorPool = actorPool;
     }
 
-    public void handleMessage(ChannelContext ctx, Message message) {
-        handleMessage(ctx, message, 1);
+    public void handleMessage(Message message, ChannelContext ctx) {
+        handleMessage(message, ctx, 1);
     }
 
-    public void handleMessage(ChannelContext ctx, Message message, int weight) {
-        actorPool.next().tell(ctx, message, weight);
+    public void handleMessage(Message message, ChannelContext ctx, int weight) {
+        actorPool.next().tell(message, ctx, weight);
     }
 
 }

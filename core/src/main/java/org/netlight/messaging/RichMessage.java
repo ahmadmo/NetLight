@@ -2,6 +2,8 @@ package org.netlight.messaging;
 
 import org.netlight.channel.ChannelContext;
 
+import java.util.Objects;
+
 /**
  * @author ahmad
  */
@@ -13,6 +15,8 @@ public final class RichMessage {
     private final int weight;
 
     public RichMessage(Message message, ChannelContext channelContext, long timeStamp, int weight) {
+        Objects.requireNonNull(message);
+        Objects.requireNonNull(channelContext);
         this.message = message;
         this.channelContext = channelContext;
         this.timeStamp = timeStamp;

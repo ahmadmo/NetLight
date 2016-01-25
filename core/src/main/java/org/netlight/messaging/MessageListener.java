@@ -7,6 +7,6 @@ import org.netlight.channel.ChannelContext;
  */
 public interface MessageListener {
 
-    void onMessage(ChannelContext ctx, Message message);
+    void onMessage(Message message, ChannelContext ctx);
 
 }
