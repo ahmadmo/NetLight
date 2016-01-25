@@ -40,7 +40,12 @@ public final class ActorPool {
     public Actor next() {
         final MaxMinHolder<Integer, Actor> holder = new MaxMinHolder<>();
         for (Actor actor : actors.values()) {
-            holder.in(isStateEqualTo(actor, RunnableActorState.IDLE) ? actor.load() - 1 : actor.load(), actor);
+            int load = actor.load();
+            if (load == 0 && isStateEqualTo(actor, RunnableActorState.IDLE)) {
+                holder.in(-1, actor);
+            } else {
+                holder.in(load, actor);
+            }
         }
         Map.Entry<Integer, Actor> nextEntry = holder.getMin();
         if (nextEntry == null) {
