@@ -14,12 +14,17 @@ import static org.netlight.encoding.StandardMessageSerializers.JSON;
  */
 public final class JsonMessageDecoder extends MessageToMessageDecoder<ByteBuf> {
 
-    private final JsonObjectDecoder decoder = new JsonObjectDecoder();
+    private final ThreadLocal<JsonObjectDecoder> decoder = new ThreadLocal<JsonObjectDecoder>() {
+        @Override
+        protected JsonObjectDecoder initialValue() {
+            return new JsonObjectDecoder();
+        }
+    };
 
     @Override
     protected void decode(ChannelHandlerContext ctx, ByteBuf msg, List<Object> out) throws Exception {
         RecyclableArrayList buffers = RecyclableArrayList.newInstance();
-        decoder.decode(ctx, msg, buffers);
+        decoder.get().decode(ctx, msg, buffers);
         for (Object buf : buffers) {
             out.add(JSON.deserialize(((ByteBuf) buf).toString(JSON.charset())));
         }
