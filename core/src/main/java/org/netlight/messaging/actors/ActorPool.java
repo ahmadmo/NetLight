@@ -4,6 +4,7 @@ import org.netlight.channel.ChannelContext;
 import org.netlight.messaging.Message;
 import org.netlight.util.CommonUtils;
 import org.netlight.util.MaxMinHolder;
+import org.netlight.util.concurrent.AtomicIntegerField;
 
 import java.util.Map;
 import java.util.concurrent.*;
@@ -18,6 +19,7 @@ public final class ActorPool {
     private final ExecutorService executorService;
     private final ActorFactory actorFactory;
     private final ConcurrentMap<Long, Actor> actors = new ConcurrentHashMap<>();
+    private final AtomicIntegerField numberOfActors = new AtomicIntegerField();
     private final ConcurrentMap<Actor, RunnableActor> runnableActors = new ConcurrentHashMap<>();
     private final ActorFutureListener actorFutureListener = new ActorFutureListenerImpl();
 
@@ -55,12 +57,12 @@ public final class ActorPool {
     }
 
     private Actor createActor() {
-        synchronized (actors) {
-            if (actors.size() < parallelism) {
-                Actor actor = new ActorDecorator(actorFactory.create());
-                actors.put(actor.id(), actor);
-                return actor;
-            }
+        if (numberOfActors.getAndIncrement() < parallelism) {
+            Actor actor = new ActorDecorator(actorFactory.create());
+            actors.put(actor.id(), actor);
+            return actor;
+        } else {
+            numberOfActors.getAndDecrement();
         }
         return null;
     }
