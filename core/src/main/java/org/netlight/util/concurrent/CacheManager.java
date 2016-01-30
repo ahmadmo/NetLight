@@ -21,8 +21,8 @@ public final class CacheManager<K, V> {
         this.cache = cache;
     }
 
-    public static <K, V> CacheManagerBuilder<K, V> newBuilder() {
-        return new CacheManagerBuilder<>();
+    public static <K, V> Builder<K, V> builder() {
+        return new Builder<>();
     }
 
     public V cache(K k, V v) {
@@ -66,76 +66,76 @@ public final class CacheManager<K, V> {
         return cache.toString();
     }
 
-    public static final class CacheManagerBuilder<K, V> {
+    public static final class Builder<K, V> {
 
         private CacheBuilder<Object, Object> cacheBuilder = CacheBuilder.newBuilder();
 
-        public CacheManagerBuilder<K, V> initialCapacity(int initialCapacity) {
+        public Builder<K, V> initialCapacity(int initialCapacity) {
             cacheBuilder.initialCapacity(initialCapacity);
             return this;
         }
 
-        public CacheManagerBuilder<K, V> concurrencyLevel(int concurrencyLevel) {
+        public Builder<K, V> concurrencyLevel(int concurrencyLevel) {
             cacheBuilder.concurrencyLevel(concurrencyLevel);
             return this;
         }
 
-        public CacheManagerBuilder<K, V> expireAfterAccess(TimeProperty duration) {
+        public Builder<K, V> expireAfterAccess(TimeProperty duration) {
             cacheBuilder.expireAfterAccess(duration.getTime(), duration.getUnit());
             return this;
         }
 
-        public CacheManagerBuilder<K, V> expireAfterWrite(TimeProperty duration) {
+        public Builder<K, V> expireAfterWrite(TimeProperty duration) {
             cacheBuilder.expireAfterWrite(duration.getTime(), duration.getUnit());
             return this;
         }
 
-        public CacheManagerBuilder<K, V> maximumSize(long size) {
+        public Builder<K, V> maximumSize(long size) {
             cacheBuilder.maximumSize(size);
             return this;
         }
 
-        public CacheManagerBuilder<K, V> maximumWeight(long size) {
+        public Builder<K, V> maximumWeight(long size) {
             cacheBuilder.maximumWeight(size);
             return this;
         }
 
-        public CacheManagerBuilder<K, V> recordStats() {
+        public Builder<K, V> recordStats() {
             cacheBuilder.recordStats();
             return this;
         }
 
-        public CacheManagerBuilder<K, V> refreshAfterWrite(TimeProperty duration) {
+        public Builder<K, V> refreshAfterWrite(TimeProperty duration) {
             cacheBuilder.refreshAfterWrite(duration.getTime(), duration.getUnit());
             return this;
         }
 
-        public CacheManagerBuilder<K, V> removalListener(RemovalListener<K, V> listener) {
+        public Builder<K, V> removalListener(RemovalListener<K, V> listener) {
             cacheBuilder.removalListener(listener);
             return this;
         }
 
-        public CacheManagerBuilder<K, V> softValues() {
+        public Builder<K, V> softValues() {
             cacheBuilder.softValues();
             return this;
         }
 
-        public CacheManagerBuilder<K, V> ticker(Ticker ticker) {
+        public Builder<K, V> ticker(Ticker ticker) {
             cacheBuilder.ticker(ticker);
             return this;
         }
 
-        public CacheManagerBuilder<K, V> weakKeys() {
+        public Builder<K, V> weakKeys() {
             cacheBuilder.weakKeys();
             return this;
         }
 
-        public CacheManagerBuilder<K, V> weakValues() {
+        public Builder<K, V> weakValues() {
             cacheBuilder.weakValues();
             return this;
         }
 
-        public CacheManagerBuilder<K, V> weigher(Weigher<K, V> weigher) {
+        public Builder<K, V> weigher(Weigher<K, V> weigher) {
             cacheBuilder.weigher(weigher);
             return this;
         }

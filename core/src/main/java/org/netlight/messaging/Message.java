@@ -106,28 +106,32 @@ public final class Message extends HashMap<String, Object> {
         return null;
     }
 
-    public MessageBuilder builder() {
-        return newBuilder(this);
+    public Builder newBuilder() {
+        return builder(this);
     }
 
-    public static MessageBuilder newBuilder() {
-        return newBuilder(new Message());
+    public static Builder builder() {
+        return new Builder();
     }
 
-    public static MessageBuilder newBuilder(Message message) {
-        return new MessageBuilder(message);
+    public static Builder builder(Message message) {
+        return new Builder(message);
     }
 
-    public static final class MessageBuilder {
+    public static final class Builder {
 
         private final Message message;
 
-        public MessageBuilder(Message message) {
+        public Builder() {
+            this.message = new Message();
+        }
+
+        public Builder(Message message) {
             Objects.requireNonNull(message);
             this.message = message;
         }
 
-        public <T> MessageBuilder put(String name, T value) {
+        public <T> Builder put(String name, T value) {
             if (notNull(value)) {
                 Objects.requireNonNull(name);
                 message.put(name, value);
@@ -136,7 +140,7 @@ public final class Message extends HashMap<String, Object> {
         }
 
         @SuppressWarnings("unchecked")
-        public <T> MessageBuilder putToList(String name, T value) {
+        public <T> Builder putToList(String name, T value) {
             if (notNull(value)) {
                 Objects.requireNonNull(name);
                 List<Object> list = message.getList(name);
@@ -149,7 +153,7 @@ public final class Message extends HashMap<String, Object> {
         }
 
         @SuppressWarnings("unchecked")
-        public <T> MessageBuilder putToList(String name, T... values) {
+        public <T> Builder putToList(String name, T... values) {
             if (values.length > 0) {
                 Objects.requireNonNull(name);
                 List<Object> list = message.getList(name);

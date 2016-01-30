@@ -1,4 +1,4 @@
-package org.netlight.encoding;
+package org.netlight.messaging.protocol.json;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufUtil;

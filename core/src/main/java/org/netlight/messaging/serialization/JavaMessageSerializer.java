@@ -22,7 +22,7 @@ public final class JavaMessageSerializer implements BinaryMessageSerializer {
     public Message deserialize(byte[] bytes) throws IOException, ClassNotFoundException {
         try (ByteArrayInputStream byteArrayInputStream = new ByteArrayInputStream(bytes);
              ObjectInputStream objectInputStream = new ObjectInputStream(byteArrayInputStream)) {
-            return (Message) objectInputStream.readObject();
+            return Message.toMessage(objectInputStream.readObject());
         }
     }
 

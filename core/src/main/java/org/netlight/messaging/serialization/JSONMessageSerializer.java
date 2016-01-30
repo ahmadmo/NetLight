@@ -22,12 +22,20 @@ public final class JSONMessageSerializer implements TextMessageSerializer {
         this(StandardCharsets.UTF_8);
     }
 
+    public JSONMessageSerializer(ObjectMapper mapper) {
+        this(mapper, StandardCharsets.UTF_8);
+    }
+
     public JSONMessageSerializer(Charset charset) {
+        this(new ObjectMapper(), charset);
+    }
+
+    public JSONMessageSerializer(ObjectMapper mapper, Charset charset) {
+        Objects.requireNonNull(mapper);
         Objects.requireNonNull(charset);
-        this.charset = charset;
-        final ObjectMapper mapper = new ObjectMapper();
         writer = mapper.writerFor(Message.class);
         reader = mapper.readerFor(Message.class);
+        this.charset = charset;
     }
 
     @Override

@@ -1,4 +1,4 @@
-package org.netlight.encoding;
+package org.netlight.messaging.protocol.binary;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;

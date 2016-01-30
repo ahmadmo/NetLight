@@ -3,10 +3,10 @@ package org.netlight.messaging.actors;
 import org.netlight.channel.ChannelContext;
 import org.netlight.messaging.Message;
 import org.netlight.util.CommonUtils;
+import org.netlight.util.MapEntry;
 import org.netlight.util.MaxMinHolder;
 import org.netlight.util.concurrent.AtomicIntegerField;
 
-import java.util.Map;
 import java.util.concurrent.*;
 import java.util.concurrent.locks.Lock;
 
@@ -47,7 +47,7 @@ public final class ActorPool {
                 holder.in(load, actor);
             }
         }
-        Map.Entry<Integer, Actor> nextEntry = holder.getMin();
+        MapEntry<Integer, Actor> nextEntry = holder.getMin();
         if (nextEntry == null) {
             return createActor();
         }
