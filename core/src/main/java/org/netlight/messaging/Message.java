@@ -154,13 +154,17 @@ public final class Message extends HashMap<String, Object> {
 
         @SuppressWarnings("unchecked")
         public <T> Builder putToList(String name, T... values) {
-            if (values.length > 0) {
+            if (notNull(values)) {
                 Objects.requireNonNull(name);
                 List<Object> list = message.getList(name);
                 if (list == null) {
                     message.put(name, list = new ArrayList<>());
                 }
-                Collections.addAll(list, values);
+                for (T value : values) {
+                    if (notNull(value)) {
+                        list.add(value);
+                    }
+                }
             }
             return this;
         }

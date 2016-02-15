@@ -9,6 +9,4 @@ public interface RunnableActor extends Runnable {
 
     RunnableActorState state();
 
-    boolean isFirstRun();
-
 }

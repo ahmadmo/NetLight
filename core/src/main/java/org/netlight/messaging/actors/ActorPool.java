@@ -1,35 +1,46 @@
 package org.netlight.messaging.actors;
 
 import org.netlight.channel.ChannelContext;
-import org.netlight.messaging.Message;
+import org.netlight.messaging.*;
 import org.netlight.util.CommonUtils;
 import org.netlight.util.MapEntry;
 import org.netlight.util.MaxMinHolder;
+import org.netlight.util.TimeProperty;
+import org.netlight.util.concurrent.AtomicBooleanField;
 import org.netlight.util.concurrent.AtomicIntegerField;
+import org.netlight.util.concurrent.AtomicLongField;
+import org.netlight.util.concurrent.AtomicReferenceField;
 
+import java.util.Collections;
+import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.*;
-import java.util.concurrent.locks.Lock;
+import java.util.function.Function;
 
 /**
  * @author ahmad
  */
 public final class ActorPool {
 
+    private static final AtomicLongField ACTOR_ID = new AtomicLongField();
+    private static final TimeProperty IDLE_TIMEOUT = TimeProperty.seconds(60L);
+
     private final int parallelism;
     private final ExecutorService executorService;
-    private final ActorFactory actorFactory;
-    private final ConcurrentMap<Long, Actor> actors = new ConcurrentHashMap<>();
-    private final AtomicIntegerField numberOfActors = new AtomicIntegerField();
+    private final MessageListener messageListener;
+    private final AtomicIntegerField poolSize = new AtomicIntegerField();
+    private final Set<Actor> actors = Collections.newSetFromMap(new ConcurrentHashMap<>());
     private final ConcurrentMap<Actor, RunnableActor> runnableActors = new ConcurrentHashMap<>();
-    private final ActorFutureListener actorFutureListener = new ActorFutureListenerImpl();
+    private final ActorActivator actorActivator = new ActorActivator();
 
-    public ActorPool(ActorFactory actorFactory) {
-        this(Runtime.getRuntime().availableProcessors() * 2, actorFactory);
+    public ActorPool(MessageListener messageListener) {
+        this(Runtime.getRuntime().availableProcessors() * 2, messageListener);
     }
 
-    public ActorPool(int parallelism, ActorFactory actorFactory) {
+    public ActorPool(int parallelism, MessageListener messageListener) {
+        Objects.requireNonNull(messageListener);
         this.parallelism = parallelism;
-        this.actorFactory = actorFactory;
+        this.messageListener = messageListener;
         executorService = new ForkJoinPool(parallelism);
     }
 
@@ -37,9 +48,13 @@ public final class ActorPool {
         return parallelism;
     }
 
+    public int getPoolSize() {
+        return poolSize.get();
+    }
+
     public Actor next() {
         final MaxMinHolder<Integer, Actor> holder = new MaxMinHolder<>();
-        for (Actor actor : actors.values()) {
+        for (Actor actor : actors) {
             int load = actor.load();
             if (load == 0 && isStateEqualTo(actor, RunnableActorState.IDLE)) {
                 holder.in(-1, actor);
@@ -62,31 +77,14 @@ public final class ActorPool {
     }
 
     private Actor createActor() {
-        if (numberOfActors.getAndIncrement() < parallelism) {
-            Actor actor = new ActorDecorator(actorFactory.create());
-            actors.put(actor.id(), actor);
-            return actor;
-        } else {
-            numberOfActors.getAndDecrement();
-        }
-        return null;
-    }
-
-    private void activate(Actor actor) {
-        RunnableActor r = CommonUtils.getOrPutConcurrent(runnableActors, actor, actor::makeRunnable);
-        if (r.state() == RunnableActorState.IN_ACTIVE) {
-            final Lock l = actor.lock();
-            l.lock();
-            try {
-                if (!r.isFirstRun()) {
-                    runnableActors.put(actor, r = actor.makeRunnable());
-                }
-                r.future().addListener(actorFutureListener);
-                executorService.execute(r);
-            } finally {
-                l.unlock();
+        if (poolSize.getAndIncrement() < parallelism) {
+            final Actor actor = new DefaultActor();
+            if (actors.add(actor)) {
+                return actor;
             }
         }
+        poolSize.getAndDecrement();
+        return null;
     }
 
     public RunnableActorState getState(Actor actor) {
@@ -106,12 +104,25 @@ public final class ActorPool {
         }
     }
 
-    private final class ActorFutureListenerImpl implements ActorFutureListener {
+    private final class ActorActivator implements Function<Actor, RunnableActor>, ActorFutureListener {
+
+        private void activate(Actor actor) {
+            runnableActors.computeIfAbsent(actor, this);
+        }
+
+        @Override
+        public RunnableActor apply(Actor actor) {
+            final RunnableActor r = actor.makeRunnable();
+            r.future().addListener(this);
+            executorService.execute(r);
+            return r;
+        }
 
         @Override
         public void onComplete(ActorFuture future) {
             final Actor actor = future.actor();
-            if (actor instanceof ActorDecorator && actors.containsKey(actor.id())) {
+            if (actor instanceof DefaultActor && actors.contains(actor)) {
+                runnableActors.remove(actor);
                 if (future.isCompletedExceptionally() || actor.load() > 0) {
                     // TODO log
                     activate(actor);
@@ -121,38 +132,95 @@ public final class ActorPool {
 
     }
 
-    private final class ActorDecorator implements Actor {
+    private final class DefaultActor implements Actor {
 
-        private final Actor decoratedActor;
-
-        private ActorDecorator(Actor decoratedActor) {
-            this.decoratedActor = decoratedActor;
-        }
+        private final long id = ACTOR_ID.getAndIncrement();
+        private final Queue<RichMessage> mailbox = new ConcurrentQueue<>();
+        private final AtomicIntegerField load = new AtomicIntegerField();
 
         @Override
         public long id() {
-            return decoratedActor.id();
+            return id;
         }
 
         @Override
         public void tell(Message message, ChannelContext ctx, int weight) {
-            decoratedActor.tell(message, ctx, weight);
-            activate(this);
+            if (mailbox.add(new RichMessage(message, ctx, System.currentTimeMillis(), weight))) {
+                load.getAndAdd(weight);
+                actorActivator.activate(this);
+            }
         }
 
         @Override
         public int load() {
-            return decoratedActor.load();
-        }
-
-        @Override
-        public Lock lock() {
-            return decoratedActor.lock();
+            return load.get();
         }
 
         @Override
         public RunnableActor makeRunnable() {
-            return decoratedActor.makeRunnable();
+            return new OneTimeRunnableActor(this);
+        }
+
+        @Override
+        public int hashCode() {
+            return Long.hashCode(id);
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            return obj == this || obj != null && obj instanceof DefaultActor && id == ((DefaultActor) obj).id;
+        }
+
+    }
+
+    private final class OneTimeRunnableActor implements RunnableActor {
+
+        private final DefaultActor actor;
+        private final ActorPromise promise;
+        private final AtomicReferenceField<RunnableActorState> state = new AtomicReferenceField<>(RunnableActorState.IN_ACTIVE);
+        private final AtomicBooleanField firstRun = new AtomicBooleanField(true);
+
+        private OneTimeRunnableActor(DefaultActor actor) {
+            this.actor = actor;
+            promise = new DefaultActorPromise(actor);
+        }
+
+        @Override
+        public ActorFuture future() {
+            return promise;
+        }
+
+        @Override
+        public RunnableActorState state() {
+            return state.get();
+        }
+
+        @Override
+        public void run() {
+            if (!firstRun.compareAndSet(true, false)) {
+                throw new IllegalStateException("This Runnable can be run only once.");
+            }
+            if (state.compareAndSet(RunnableActorState.IN_ACTIVE, RunnableActorState.ACTIVE)) {
+                try {
+                    while (!Thread.currentThread().isInterrupted()) {
+                        RichMessage richMessage;
+                        if ((richMessage = actor.mailbox.poll()) == null) {
+                            state.set(RunnableActorState.IDLE);
+                            if ((richMessage = actor.mailbox.poll(IDLE_TIMEOUT)) == null) {
+                                break;
+                            }
+                            state.set(RunnableActorState.ACTIVE);
+                        }
+                        actor.load.getAndAdd(-richMessage.getWeight());
+                        messageListener.onMessage(richMessage.getMessage(), richMessage.getChannelContext());
+                    }
+                } catch (Throwable cause) {
+                    promise.setFailure(cause);
+                } finally {
+                    state.set(RunnableActorState.IN_ACTIVE);
+                    promise.complete();
+                }
+            }
         }
 
     }

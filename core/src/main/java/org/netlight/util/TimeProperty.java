@@ -25,8 +25,23 @@ public final class TimeProperty {
         return unit;
     }
 
-    public long to(TimeUnit destUnit) {
+    public void sleep() {
+        try {
+            unit.sleep(time);
+        } catch (InterruptedException ignored) {
+        }
+    }
+
+    public long convert(TimeUnit destUnit) {
         return destUnit.convert(time, unit);
+    }
+
+    public TimeProperty to(TimeUnit destUnit) {
+        return new TimeProperty(destUnit.convert(time, unit), destUnit);
+    }
+
+    public static TimeProperty to(TimeProperty property, TimeUnit destUnit) {
+        return new TimeProperty(destUnit.convert(property.getTime(), property.getUnit()), destUnit);
     }
 
     @Override

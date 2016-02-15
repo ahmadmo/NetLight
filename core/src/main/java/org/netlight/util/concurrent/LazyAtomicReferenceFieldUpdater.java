@@ -28,7 +28,7 @@ public final class LazyAtomicReferenceFieldUpdater<V> {
         Objects.requireNonNull(policy);
         this.value = new AtomicReferenceField<>(value);
         this.updaterFunction = updaterFunction;
-        this.updateInterval = new AtomicLongField(updateInterval.to(TimeUnit.MILLISECONDS));
+        this.updateInterval = new AtomicLongField(updateInterval.convert(TimeUnit.MILLISECONDS));
         this.policy = policy;
         final long now = System.currentTimeMillis();
         lastSet = new AtomicLongField(now);
@@ -83,7 +83,7 @@ public final class LazyAtomicReferenceFieldUpdater<V> {
     }
 
     public void setUpdateInterval(TimeProperty interval) {
-        updateInterval.set(interval.to(TimeUnit.MILLISECONDS));
+        updateInterval.set(interval.convert(TimeUnit.MILLISECONDS));
     }
 
     public TimeProperty getUpdateInterval() {
