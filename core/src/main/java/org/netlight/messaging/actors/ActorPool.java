@@ -22,16 +22,11 @@ import java.util.function.Function;
  */
 public final class ActorPool {
 
-    private static final AtomicLongField ACTOR_ID = new AtomicLongField();
-    private static final TimeProperty IDLE_TIMEOUT = TimeProperty.seconds(60L);
-
     private final int parallelism;
-    private final ExecutorService executorService;
     private final MessageListener messageListener;
+    private final ActorExecutorService actorExecutorService;
     private final AtomicIntegerField poolSize = new AtomicIntegerField();
     private final Set<Actor> actors = Collections.newSetFromMap(new ConcurrentHashMap<>());
-    private final ConcurrentMap<Actor, RunnableActor> runnableActors = new ConcurrentHashMap<>();
-    private final ActorActivator actorActivator = new ActorActivator();
 
     public ActorPool(MessageListener messageListener) {
         this(Runtime.getRuntime().availableProcessors() * 2, messageListener);
@@ -41,7 +36,7 @@ public final class ActorPool {
         Objects.requireNonNull(messageListener);
         this.parallelism = parallelism;
         this.messageListener = messageListener;
-        executorService = new ForkJoinPool(parallelism);
+        actorExecutorService = new ActorExecutorService(parallelism);
     }
 
     public int getParallelism() {
@@ -56,19 +51,19 @@ public final class ActorPool {
         final MaxMinHolder<Integer, Actor> holder = new MaxMinHolder<>();
         for (Actor actor : actors) {
             int load = actor.load();
-            if (load == 0 && isStateEqualTo(actor, RunnableActorState.IDLE)) {
+            if (load == 0 && actorExecutorService.isStateEqualTo(actor, RunnableActorState.IDLE)) {
                 holder.in(-1, actor);
             } else {
                 holder.in(load, actor);
             }
         }
-        MapEntry<Integer, Actor> nextEntry = holder.getMin();
+        final MapEntry<Integer, Actor> nextEntry = holder.getMin();
         if (nextEntry == null) {
             return createActor();
         }
         Actor next = nextEntry.getValue();
         if (next.load() > 0) {
-            Actor newActor = createActor();
+            final Actor newActor = createActor();
             if (newActor != null) {
                 next = newActor;
             }
@@ -78,7 +73,7 @@ public final class ActorPool {
 
     private Actor createActor() {
         if (poolSize.getAndIncrement() < parallelism) {
-            final Actor actor = new DefaultActor();
+            final Actor actor = new DefaultActor(messageListener, actorExecutorService);
             if (actors.add(actor)) {
                 return actor;
             }
@@ -87,26 +82,20 @@ public final class ActorPool {
         return null;
     }
 
-    public RunnableActorState getState(Actor actor) {
-        return CommonUtils.computeIf(runnableActors.get(actor), CommonUtils.notNull(), RunnableActor::state);
-    }
-
-    public boolean isStateEqualTo(Actor actor, RunnableActorState expect) {
-        return CommonUtils.computeIf(getState(actor), CommonUtils.notNull(), state -> state == expect, false);
-    }
-
     public void shutdown() {
-        executorService.shutdown();
-        executorService.shutdownNow();
-        try {
-            executorService.awaitTermination(15L, TimeUnit.SECONDS);
-        } catch (InterruptedException ignored) {
-        }
+        actorExecutorService.shutdown();
     }
 
-    private final class ActorActivator implements Function<Actor, RunnableActor>, ActorFutureListener {
+    private static final class ActorExecutorService implements Function<Actor, RunnableActor>, ActorFutureListener {
 
-        private void activate(Actor actor) {
+        private final ExecutorService executorService;
+        private final ConcurrentMap<Actor, RunnableActor> runnableActors = new ConcurrentHashMap<>();
+
+        private ActorExecutorService(int parallelism) {
+            executorService = new ForkJoinPool(parallelism);
+        }
+
+        private void execute(Actor actor) {
             runnableActors.computeIfAbsent(actor, this);
         }
 
@@ -121,22 +110,45 @@ public final class ActorPool {
         @Override
         public void onComplete(ActorFuture future) {
             final Actor actor = future.actor();
-            if (actor instanceof DefaultActor && actors.contains(actor)) {
-                runnableActors.remove(actor);
-                if (future.isCompletedExceptionally() || actor.load() > 0) {
-                    // TODO log
-                    activate(actor);
-                }
+            if (runnableActors.remove(actor) != null && (future.isCompletedExceptionally() || actor.load() > 0)) {
+                // TODO log
+                execute(actor);
+            }
+        }
+
+        private RunnableActorState getState(Actor actor) {
+            return CommonUtils.computeIf(runnableActors.get(actor), CommonUtils.notNull(), RunnableActor::state);
+        }
+
+        private boolean isStateEqualTo(Actor actor, RunnableActorState expect) {
+            return CommonUtils.computeIf(getState(actor), CommonUtils.notNull(), state -> state == expect, false);
+        }
+
+        private void shutdown() {
+            executorService.shutdown();
+            executorService.shutdownNow();
+            try {
+                executorService.awaitTermination(15L, TimeUnit.SECONDS);
+            } catch (InterruptedException ignored) {
             }
         }
 
     }
 
-    private final class DefaultActor implements Actor {
+    private static final class DefaultActor implements Actor {
+
+        private static final AtomicLongField ACTOR_ID = new AtomicLongField();
 
         private final long id = ACTOR_ID.getAndIncrement();
+        private final MessageListener messageListener;
+        private final ActorExecutorService actorExecutorService;
         private final Queue<RichMessage> mailbox = new ConcurrentQueue<>();
         private final AtomicIntegerField load = new AtomicIntegerField();
+
+        private DefaultActor(MessageListener messageListener, ActorExecutorService actorExecutorService) {
+            this.messageListener = messageListener;
+            this.actorExecutorService = actorExecutorService;
+        }
 
         @Override
         public long id() {
@@ -147,7 +159,7 @@ public final class ActorPool {
         public void tell(Message message, ChannelContext ctx, int weight) {
             if (mailbox.add(new RichMessage(message, ctx, System.currentTimeMillis(), weight))) {
                 load.getAndAdd(weight);
-                actorActivator.activate(this);
+                actorExecutorService.execute(this);
             }
         }
 
@@ -158,7 +170,7 @@ public final class ActorPool {
 
         @Override
         public RunnableActor makeRunnable() {
-            return new OneTimeRunnableActor(this);
+            return new OneTimeRunnableActor(this, messageListener);
         }
 
         @Override
@@ -173,15 +185,19 @@ public final class ActorPool {
 
     }
 
-    private final class OneTimeRunnableActor implements RunnableActor {
+    private static final class OneTimeRunnableActor implements RunnableActor {
+
+        private static final TimeProperty IDLE_TIMEOUT = TimeProperty.seconds(60L);
 
         private final DefaultActor actor;
+        private final MessageListener messageListener;
         private final ActorPromise promise;
         private final AtomicReferenceField<RunnableActorState> state = new AtomicReferenceField<>(RunnableActorState.IN_ACTIVE);
         private final AtomicBooleanField firstRun = new AtomicBooleanField(true);
 
-        private OneTimeRunnableActor(DefaultActor actor) {
+        private OneTimeRunnableActor(DefaultActor actor, MessageListener messageListener) {
             this.actor = actor;
+            this.messageListener = messageListener;
             promise = new DefaultActorPromise(actor);
         }
 
@@ -202,8 +218,8 @@ public final class ActorPool {
             }
             if (state.compareAndSet(RunnableActorState.IN_ACTIVE, RunnableActorState.ACTIVE)) {
                 try {
+                    RichMessage richMessage;
                     while (!Thread.currentThread().isInterrupted()) {
-                        RichMessage richMessage;
                         if ((richMessage = actor.mailbox.poll()) == null) {
                             state.set(RunnableActorState.IDLE);
                             if ((richMessage = actor.mailbox.poll(IDLE_TIMEOUT)) == null) {
